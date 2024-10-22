@@ -157,15 +157,17 @@ class ODHBack {
     async api_Fetch(params) {
         let { url, callbackId } = params;
 
-        let request = {
-            url,
-            type: 'GET',
-            dataType: 'text',
-            timeout: 3000,
-            error: (xhr, status, error) => this.callback(null, callbackId),
-            success: (data, status) => this.callback(data, callbackId)
-        };
-        $.ajax(request);
+        try {
+            const response = await fetch(url, { method: 'GET' });
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const data = await response.text();
+            this.callback(data, callbackId);
+        } catch (error) {
+            console.error('Fetch error:', error);
+            this.callback(null, callbackId);
+        }
     }
 
     async api_Deinflect(params) {

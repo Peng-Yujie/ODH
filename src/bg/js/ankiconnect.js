@@ -1,64 +1,73 @@
 class Ankiconnect {
-    constructor() {
-        this.version = 6;
-    }
+  constructor() {
+    this.version = 6;
+  }
 
-    async ankiInvoke(action, params = {}, timeout = 3000) {
-        let version = this.version;
-        let request = { action, version, params };
-        return new Promise((resolve, reject) => {
-            $.ajax({
-                url: 'http://127.0.0.1:8765',
-                type: 'POST',
-                data: JSON.stringify(request),
-                timeout,
-                contentType: 'application/json; charset=utf-8',
-                dataType: 'json',
-                success: (response) => {
-                    try {
-                        if (Object.getOwnPropertyNames(response).length != 2) {
-                            throw 'response has an unexpected number of fields';
-                        }
-                        if (!response.hasOwnProperty('error')) {
-                            throw 'response is missing required error field';
-                        }
-                        if (!response.hasOwnProperty('result')) {
-                            throw 'response is missing required result field';
-                        }
-                        if (response.error) {
-                            throw response.error;
-                        }
-                        resolve(response.result);
-                    } catch (e) {
-                        reject(e);
-                    }
-                },
-                error: (xhr, status, err) => resolve(null),
-            });
-        });
-    }
+  async ankiInvoke(action, params = {}, timeout = 3000) {
+    let version = this.version;
+    let request = { action, version, params };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-    async addNote(note) {
-        if (note)
-            return await this.ankiInvoke('addNote', { note });
-        else
-            return Promise.resolve(null);
-    }
+    try {
+      const response = await fetch("http://127.0.0.1:8765", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      });
 
-    async getDeckNames() {
-        return await this.ankiInvoke('deckNames');
-    }
+      clearTimeout(timeoutId);
 
-    async getModelNames() {
-        return await this.ankiInvoke('modelNames');
-    }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-    async getModelFieldNames(modelName) {
-        return await this.ankiInvoke('modelFieldNames', { modelName });
-    }
+      const data = await response.json();
 
-    async getVersion() {
-        let version = await this.ankiInvoke('version', {}, 100);
-        return version ? 'ver:' + version : null;
+      if (Object.getOwnPropertyNames(data).length != 2) {
+        throw "response has an unexpected number of fields";
+      }
+      if (!data.hasOwnProperty("error")) {
+        throw "response is missing required error field";
+      }
+      if (!data.hasOwnProperty("result")) {
+        throw "response is missing required result field";
+      }
+      if (data.error) {
+        throw data.error;
+      }
+
+      return data.result;
+    } catch (e) {
+      if (e.name === "AbortError") {
+        console.error("Request timed out");
+      }
+      return Promise.reject(e);
     }
+  }
+
+  async addNote(note) {
+    if (note) return await this.ankiInvoke("addNote", { note });
+    else return Promise.resolve(null);
+  }
+
+  async getDeckNames() {
+    return await this.ankiInvoke("deckNames");
+  }
+
+  async getModelNames() {
+    return await this.ankiInvoke("modelNames");
+  }
+
+  async getModelFieldNames(modelName) {
+    return await this.ankiInvoke("modelFieldNames", { modelName });
+  }
+
+  async getVersion() {
+    let version = await this.ankiInvoke("version", {}, 100);
+    return version ? "ver:" + version : null;
+  }
 }
